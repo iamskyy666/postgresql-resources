@@ -4444,4 +4444,2964 @@ In real backend development, we mostly master:
 
 because those solve the majority of production problems.
 
+# Aggregate Functions in PostgreSQL — In Depth
 
+Aggregate functions allow us to calculate values from multiple rows.
+
+Instead of returning:
+
+* individual rows
+
+they return:
+
+* summarized/computed results
+
+These are heavily used in:
+
+* analytics
+* dashboards
+* reports
+* business metrics
+* backend APIs
+* admin panels
+
+Without aggregates, SQL would be far less useful for real applications.
+
+---
+
+# What Aggregate Functions Do
+
+Suppose we have:
+
+| name  | salary |
+| ----- | ------ |
+| Skyy  | 50000  |
+| Bruce | 70000  |
+| Tony  | 90000  |
+
+Normally:
+
+```sql id="2v9q1x"
+SELECT salary FROM employees;
+```
+
+returns:
+
+```txt id="7m1x2w"
+50000
+70000
+90000
+```
+
+But aggregate functions summarize rows.
+
+Example:
+
+```sql id="9w2m6q"
+SELECT AVG(salary) FROM employees;
+```
+
+returns:
+
+```txt id="1z0x7v"
+70000
+```
+
+(single computed result)
+
+---
+
+# Most Important Aggregate Functions
+
+| Function  | Purpose        |
+| --------- | -------------- |
+| `COUNT()` | count rows     |
+| `SUM()`   | total values   |
+| `AVG()`   | average        |
+| `MIN()`   | smallest value |
+| `MAX()`   | largest value  |
+
+These are the core aggregates we constantly use.
+
+---
+
+# Example Table
+
+We’ll use:
+
+```sql id="0v4x9m"
+CREATE TABLE orders(
+    id SERIAL PRIMARY KEY,
+    customer_name TEXT,
+    amount NUMERIC(10,2),
+    status TEXT
+);
+```
+
+---
+
+# Sample Data
+
+| id | customer_name | amount | status  |
+| -- | ------------- | ------ | ------- |
+| 1  | Skyy          | 500    | paid    |
+| 2  | Bruce         | 300    | pending |
+| 3  | Tony          | 800    | paid    |
+| 4  | Skyy          | 200    | paid    |
+
+---
+
+# 1. COUNT()
+
+Counts rows.
+
+---
+
+# Count All Rows
+
+```sql id="5m8x2q"
+SELECT COUNT(*)
+FROM orders;
+```
+
+---
+
+# Result
+
+```txt id="8x7m1v"
+4
+```
+
+because table contains:
+
+* 4 rows
+
+---
+
+# Why `*`?
+
+```sql id="1m4x9q"
+COUNT(*)
+```
+
+means:
+
+> count every row
+
+---
+
+# Count Specific Column
+
+```sql id="9q2m1x"
+SELECT COUNT(status)
+FROM orders;
+```
+
+Counts:
+
+* non-NULL values only
+
+Important distinction.
+
+---
+
+# COUNT(column) vs COUNT(*)
+
+---
+
+# `COUNT(*)`
+
+Counts ALL rows.
+
+---
+
+# `COUNT(column)`
+
+Counts only:
+
+* non-NULL values
+
+---
+
+# Example
+
+| name  | age  |
+| ----- | ---- |
+| Skyy  | 29   |
+| Bruce | NULL |
+
+---
+
+```sql id="6x2m8w"
+SELECT COUNT(age)
+FROM users;
+```
+
+returns:
+
+```txt id="3m9x1v"
+1
+```
+
+because NULL ignored.
+
+---
+
+# 2. SUM()
+
+Adds numeric values.
+
+---
+
+# Query
+
+```sql id="4w8m1x"
+SELECT SUM(amount)
+FROM orders;
+```
+
+---
+
+# Result
+
+```txt id="0v2m9x"
+1800
+```
+
+because:
+
+```txt id="6m1x8q"
+500 + 300 + 800 + 200
+```
+
+---
+
+# Used For
+
+* total revenue
+* total sales
+* total views
+* total expenses
+
+Very common in business systems.
+
+---
+
+# 3. AVG()
+
+Calculates average.
+
+---
+
+# Query
+
+```sql id="8m2x0v"
+SELECT AVG(amount)
+FROM orders;
+```
+
+---
+
+# Result
+
+```txt id="5q1x9m"
+450
+```
+
+---
+
+# Formula
+
+```txt id="1x9m2q"
+SUM / COUNT
+```
+
+---
+
+# Used For
+
+* average salary
+* average rating
+* average order value
+* average response time
+
+---
+
+# 4. MIN()
+
+Smallest value.
+
+---
+
+# Query
+
+```sql id="7m1q8x"
+SELECT MIN(amount)
+FROM orders;
+```
+
+---
+
+# Result
+
+```txt id="2x8m1v"
+200
+```
+
+---
+
+# 5. MAX()
+
+Largest value.
+
+---
+
+# Query
+
+```sql id="9m4x2q"
+SELECT MAX(amount)
+FROM orders;
+```
+
+---
+
+# Result
+
+```txt id="0x7m1v"
+800
+```
+
+---
+
+# Combining Multiple Aggregates
+
+Very common.
+
+---
+
+# Query
+
+```sql id="3x1m8q"
+SELECT
+    COUNT(*) AS total_orders,
+    SUM(amount) AS total_revenue,
+    AVG(amount) AS avg_order,
+    MIN(amount) AS smallest_order,
+    MAX(amount) AS biggest_order
+FROM orders;
+```
+
+---
+
+# Result
+
+| total_orders | total_revenue | avg_order | smallest_order | biggest_order |
+| ------------ | ------------- | --------- | -------------- | ------------- |
+| 4            | 1800          | 450       | 200            | 800           |
+
+---
+
+# GROUP BY — Extremely Important
+
+This is where aggregates become powerful.
+
+---
+
+# Problem
+
+Without grouping:
+
+```sql id="8x1m2q"
+SELECT AVG(amount)
+FROM orders;
+```
+
+gives one average for ALL rows.
+
+But what if we want:
+
+```txt id="9m2x1v"
+average per customer
+```
+
+?
+
+---
+
+# GROUP BY Solves This
+
+---
+
+# Query
+
+```sql id="5x8m1q"
+SELECT
+    customer_name,
+    SUM(amount) AS total_spent
+FROM orders
+GROUP BY customer_name;
+```
+
+---
+
+# Result
+
+| customer_name | total_spent |
+| ------------- | ----------- |
+| Skyy          | 700         |
+| Bruce         | 300         |
+| Tony          | 800         |
+
+---
+
+# Mental Model
+
+`GROUP BY` creates buckets/groups.
+
+---
+
+# Example
+
+Before grouping:
+
+```txt id="4m2x9q"
+Skyy 500
+Bruce 300
+Tony 800
+Skyy 200
+```
+
+---
+
+# After grouping
+
+```txt id="6x1m8v"
+Skyy → [500, 200]
+Bruce → [300]
+Tony → [800]
+```
+
+Then aggregates apply inside each group.
+
+---
+
+# GROUP BY Rule
+
+Very important SQL rule.
+
+---
+
+# Wrong Query
+
+```sql id="8m1x4q"
+SELECT customer_name, amount
+FROM orders
+GROUP BY customer_name;
+```
+
+Error occurs because:
+
+* `amount` not aggregated
+* not grouped
+
+---
+
+# Correct
+
+```sql id="2x9m1q"
+SELECT
+    customer_name,
+    SUM(amount)
+FROM orders
+GROUP BY customer_name;
+```
+
+---
+
+# HAVING
+
+Used to filter groups.
+
+---
+
+# Example
+
+```sql id="7x2m1q"
+SELECT
+    customer_name,
+    SUM(amount) AS total_spent
+FROM orders
+GROUP BY customer_name
+HAVING SUM(amount) > 500;
+```
+
+---
+
+# Result
+
+| customer_name | total_spent |
+| ------------- | ----------- |
+| Skyy          | 700         |
+| Tony          | 800         |
+
+---
+
+# Difference Between WHERE and HAVING
+
+Huge concept.
+
+---
+
+# WHERE
+
+Filters rows BEFORE grouping.
+
+---
+
+# HAVING
+
+Filters groups AFTER grouping.
+
+---
+
+# Execution Order (Important)
+
+SQL roughly processes:
+
+```txt id="0m2x8v"
+FROM
+WHERE
+GROUP BY
+HAVING
+SELECT
+ORDER BY
+LIMIT
+```
+
+Understanding this explains many SQL behaviors.
+
+---
+
+# DISTINCT with Aggregates
+
+---
+
+# Example
+
+```sql id="3m8x1q"
+SELECT COUNT(DISTINCT customer_name)
+FROM orders;
+```
+
+---
+
+# Result
+
+```txt id="1x2m9v"
+3
+```
+
+because:
+
+* Skyy counted once
+
+---
+
+# NULL Behavior
+
+Most aggregates ignore NULL.
+
+---
+
+# Example
+
+| amount |
+| ------ |
+| 100    |
+| NULL   |
+| 200    |
+
+---
+
+# SUM()
+
+returns:
+
+```txt id="5x1m8v"
+300
+```
+
+NULL ignored.
+
+---
+
+# AVG()
+
+returns:
+
+```txt id="2m9x1q"
+150
+```
+
+NULL ignored.
+
+---
+
+# Real Backend Examples
+
+---
+
+# Ecommerce Dashboard
+
+```sql id="8x2m1q"
+SELECT SUM(amount)
+FROM orders;
+```
+
+Total revenue.
+
+---
+
+# Social Media
+
+```sql id="7m1x2q"
+SELECT COUNT(*)
+FROM posts;
+```
+
+Total posts.
+
+---
+
+# Analytics
+
+```sql id="4x9m1q"
+SELECT AVG(session_duration)
+FROM analytics;
+```
+
+Average session time.
+
+---
+
+# Blog Platform
+
+```sql id="9x1m2q"
+SELECT
+    user_id,
+    COUNT(*) AS total_posts
+FROM posts
+GROUP BY user_id;
+```
+
+Posts per author.
+
+---
+
+# Aggregate + JOIN
+
+Very common.
+
+---
+
+# Example
+
+```sql id="1m8x2q"
+SELECT
+    users.name,
+    COUNT(posts.id) AS total_posts
+FROM users
+LEFT JOIN posts
+ON users.id = posts.user_id
+GROUP BY users.name;
+```
+
+---
+
+# Meaning
+
+Count posts written by each user.
+
+---
+
+# Result
+
+| name  | total_posts |
+| ----- | ----------- |
+| Skyy  | 5           |
+| Bruce | 2           |
+
+---
+
+# Most Common Beginner Mistakes
+
+---
+
+# 1. Forgetting GROUP BY
+
+Very common error.
+
+---
+
+# 2. Mixing Aggregated + Non-Aggregated Columns
+
+Incorrect:
+
+```sql id="6m2x1q"
+SELECT name, COUNT(*)
+FROM users;
+```
+
+Need:
+
+```sql id="3x1m9q"
+GROUP BY name
+```
+
+---
+
+# 3. Using WHERE Instead of HAVING
+
+Incorrect:
+
+```sql id="0x8m1q"
+WHERE COUNT(*) > 5
+```
+
+Correct:
+
+```sql id="2x1m8q"
+HAVING COUNT(*) > 5
+```
+
+---
+
+# 4. Forgetting NULL Behavior
+
+Aggregates usually ignore NULL values.
+
+---
+
+# Most Important Mental Model
+
+Aggregate functions:
+
+```txt id="5m2x1v"
+convert many rows into summarized information
+```
+
+while:
+
+```txt id="7x1m2v"
+GROUP BY
+```
+
+lets us summarize:
+
+* per category
+* per user
+* per product
+* per status
+* per day
+
+This is the foundation of SQL analytics and reporting systems.
+
+# `GROUP BY` in PostgreSQL — In Depth
+
+`GROUP BY` is one of the most important SQL concepts.
+
+It allows us to:
+
+* organize rows into groups
+* calculate summaries per group
+* build reports
+* generate analytics
+* power dashboards
+
+Without `GROUP BY`, aggregate functions only give us:
+
+* one result for the entire table
+
+With `GROUP BY`, we can calculate results:
+
+* per user
+* per category
+* per product
+* per day
+* per status
+
+This is fundamental in real backend systems.
+
+---
+
+# Core Idea
+
+`GROUP BY` groups rows that share the same value.
+
+Then aggregate functions operate:
+
+* inside each group
+
+---
+
+# Example Table
+
+Suppose we have:
+
+| id | customer | amount | status  |
+| -- | -------- | ------ | ------- |
+| 1  | Skyy     | 500    | paid    |
+| 2  | Bruce    | 300    | pending |
+| 3  | Skyy     | 200    | paid    |
+| 4  | Tony     | 800    | paid    |
+| 5  | Bruce    | 150    | paid    |
+
+---
+
+# Without GROUP BY
+
+If we run:
+
+```sql id="3m1x8q"
+SELECT SUM(amount)
+FROM orders;
+```
+
+Result:
+
+```txt id="7x2m1v"
+1950
+```
+
+This summarizes:
+
+* entire table
+
+---
+
+# Problem
+
+What if we want:
+
+```txt id="8m1x2v"
+total amount per customer
+```
+
+?
+
+That’s where `GROUP BY` comes in.
+
+---
+
+# Basic GROUP BY
+
+```sql id="5x1m9q"
+SELECT
+    customer,
+    SUM(amount) AS total_spent
+FROM orders
+GROUP BY customer;
+```
+
+---
+
+# Result
+
+| customer | total_spent |
+| -------- | ----------- |
+| Skyy     | 700         |
+| Bruce    | 450         |
+| Tony     | 800         |
+
+---
+
+# What Happened Internally?
+
+---
+
+# Original Rows
+
+```txt id="1x2m8v"
+Skyy  500
+Bruce 300
+Skyy  200
+Tony  800
+Bruce 150
+```
+
+---
+
+# GROUP BY Creates Buckets
+
+```txt id="2m1x9v"
+Skyy  → [500, 200]
+Bruce → [300, 150]
+Tony  → [800]
+```
+
+Then:
+
+```sql id="8x1m4q"
+SUM(amount)
+```
+
+runs separately inside each group.
+
+---
+
+# Important Mental Model
+
+`GROUP BY` does NOT summarize entire table anymore.
+
+It summarizes:
+
+* each group independently
+
+---
+
+# Syntax Structure
+
+```sql id="4m1x8q"
+SELECT
+    grouped_column,
+    aggregate_function()
+FROM table
+GROUP BY grouped_column;
+```
+
+---
+
+# Another Example
+
+---
+
+# Count Orders Per Customer
+
+```sql id="7x1m3q"
+SELECT
+    customer,
+    COUNT(*) AS total_orders
+FROM orders
+GROUP BY customer;
+```
+
+---
+
+# Result
+
+| customer | total_orders |
+| -------- | ------------ |
+| Skyy     | 2            |
+| Bruce    | 2            |
+| Tony     | 1            |
+
+---
+
+# GROUP BY with Multiple Columns
+
+Very common.
+
+---
+
+# Example
+
+```sql id="6x2m1q"
+SELECT
+    customer,
+    status,
+    COUNT(*) AS total
+FROM orders
+GROUP BY customer, status;
+```
+
+---
+
+# Result
+
+| customer | status  | total |
+| -------- | ------- | ----- |
+| Skyy     | paid    | 2     |
+| Bruce    | pending | 1     |
+| Bruce    | paid    | 1     |
+| Tony     | paid    | 1     |
+
+---
+
+# What Happened?
+
+Now grouping uses BOTH columns.
+
+So groups become:
+
+```txt id="9x1m2v"
+(Skyy, paid)
+(Bruce, pending)
+(Bruce, paid)
+(Tony, paid)
+```
+
+Each unique combination creates a group.
+
+---
+
+# Important SQL Rule
+
+This is one of the biggest beginner issues.
+
+---
+
+# Wrong Query
+
+```sql id="1m8x4q"
+SELECT customer, amount
+FROM orders
+GROUP BY customer;
+```
+
+---
+
+# Why Error Happens
+
+Because:
+
+* `customer` grouped
+* `amount` neither:
+
+  * grouped
+  * aggregated
+
+PostgreSQL does not know:
+
+* WHICH amount to show
+
+---
+
+# Correct Query
+
+```sql id="5x2m8q"
+SELECT
+    customer,
+    SUM(amount)
+FROM orders
+GROUP BY customer;
+```
+
+Now:
+
+* `customer` grouped
+* `amount` aggregated
+
+Valid.
+
+---
+
+# Important GROUP BY Rule
+
+Every selected column must be either:
+
+| Allowed?   | Example       |
+| ---------- | ------------- |
+| grouped    | `customer`    |
+| aggregated | `SUM(amount)` |
+
+Otherwise SQL errors.
+
+---
+
+# Aggregate Functions Commonly Used with GROUP BY
+
+| Function  | Purpose    |
+| --------- | ---------- |
+| `COUNT()` | count rows |
+| `SUM()`   | total      |
+| `AVG()`   | average    |
+| `MIN()`   | smallest   |
+| `MAX()`   | largest    |
+
+---
+
+# Example
+
+```sql id="2x1m9q"
+SELECT
+    customer,
+    COUNT(*) AS orders,
+    SUM(amount) AS total,
+    AVG(amount) AS average_order,
+    MAX(amount) AS biggest_order
+FROM orders
+GROUP BY customer;
+```
+
+---
+
+# HAVING — Filtering Groups
+
+Very important concept.
+
+---
+
+# Problem
+
+Suppose we only want customers whose spending exceeds 500.
+
+We cannot use:
+
+```sql id="8x2m1q"
+WHERE SUM(amount) > 500
+```
+
+because:
+
+* WHERE runs BEFORE grouping
+
+---
+
+# Correct Solution
+
+```sql id="6m1x2q"
+SELECT
+    customer,
+    SUM(amount) AS total_spent
+FROM orders
+GROUP BY customer
+HAVING SUM(amount) > 500;
+```
+
+---
+
+# Result
+
+| customer | total_spent |
+| -------- | ----------- |
+| Skyy     | 700         |
+| Tony     | 800         |
+
+---
+
+# Difference Between WHERE and HAVING
+
+Huge interview/backend concept.
+
+---
+
+# WHERE
+
+Filters:
+
+* rows BEFORE grouping
+
+---
+
+# HAVING
+
+Filters:
+
+* groups AFTER grouping
+
+---
+
+# Visual Flow
+
+```txt id="0x1m8v"
+Rows
+  ↓
+WHERE
+  ↓
+GROUP BY
+  ↓
+HAVING
+  ↓
+Final Result
+```
+
+---
+
+# Example Combining WHERE + GROUP BY + HAVING
+
+```sql id="3m1x9q"
+SELECT
+    customer,
+    SUM(amount) AS total_paid
+FROM orders
+WHERE status = 'paid'
+GROUP BY customer
+HAVING SUM(amount) > 300;
+```
+
+---
+
+# Step-by-Step
+
+---
+
+# 1. WHERE
+
+Keeps only:
+
+```txt id="5x1m2v"
+paid rows
+```
+
+---
+
+# 2. GROUP BY
+
+Groups remaining rows by customer.
+
+---
+
+# 3. SUM()
+
+Calculates totals per customer.
+
+---
+
+# 4. HAVING
+
+Filters grouped totals.
+
+---
+
+# GROUP BY + ORDER BY
+
+Very common.
+
+---
+
+# Example
+
+```sql id="7m1x8q"
+SELECT
+    customer,
+    SUM(amount) AS total_spent
+FROM orders
+GROUP BY customer
+ORDER BY total_spent DESC;
+```
+
+---
+
+# Result
+
+Highest spending customers first.
+
+---
+
+# GROUP BY + JOIN
+
+Extremely common in backend systems.
+
+---
+
+# Example Tables
+
+## users
+
+| id | name  |
+| -- | ----- |
+| 1  | Skyy  |
+| 2  | Bruce |
+
+---
+
+## posts
+
+| id  | title  | user_id |
+| --- | ------ | ------- |
+| 101 | SQL    | 1       |
+| 102 | Go     | 1       |
+| 103 | Batman | 2       |
+
+---
+
+# Query
+
+```sql id="2m8x1q"
+SELECT
+    users.name,
+    COUNT(posts.id) AS total_posts
+FROM users
+LEFT JOIN posts
+ON users.id = posts.user_id
+GROUP BY users.name;
+```
+
+---
+
+# Result
+
+| name  | total_posts |
+| ----- | ----------- |
+| Skyy  | 2           |
+| Bruce | 1           |
+
+---
+
+# Why LEFT JOIN Here?
+
+Because we may want:
+
+* users with zero posts too
+
+INNER JOIN could hide them.
+
+---
+
+# NULL Behavior
+
+Important.
+
+---
+
+# Example
+
+| customer | amount |
+| -------- | ------ |
+| Skyy     | NULL   |
+| Skyy     | 500    |
+
+---
+
+# Query
+
+```sql id="8m2x1q"
+SELECT
+    customer,
+    AVG(amount)
+FROM orders
+GROUP BY customer;
+```
+
+---
+
+# Result
+
+```txt id="1x9m4v"
+500
+```
+
+NULL ignored by aggregates.
+
+---
+
+# GROUP BY Execution Order
+
+SQL roughly processes:
+
+```txt id="0m2x7v"
+FROM
+WHERE
+GROUP BY
+HAVING
+SELECT
+ORDER BY
+LIMIT
+```
+
+Understanding this explains:
+
+* why HAVING exists
+* why aggregates fail in WHERE
+* many SQL errors
+
+---
+
+# Real Backend Examples
+
+---
+
+# Ecommerce Dashboard
+
+```sql id="4x1m8q"
+SELECT
+    product_id,
+    SUM(quantity)
+FROM order_items
+GROUP BY product_id;
+```
+
+Total sales per product.
+
+---
+
+# Social Media
+
+```sql id="6x1m2q"
+SELECT
+    user_id,
+    COUNT(*)
+FROM posts
+GROUP BY user_id;
+```
+
+Posts per user.
+
+---
+
+# SaaS Analytics
+
+```sql id="9m1x2q"
+SELECT
+    DATE(created_at),
+    COUNT(*)
+FROM signups
+GROUP BY DATE(created_at);
+```
+
+Daily signups.
+
+---
+
+# Banking
+
+```sql id="2x1m7q"
+SELECT
+    account_id,
+    SUM(amount)
+FROM transactions
+GROUP BY account_id;
+```
+
+Account balances.
+
+---
+
+# Most Common Beginner Mistakes
+
+---
+
+# 1. Forgetting GROUP BY
+
+Very common.
+
+---
+
+# 2. Selecting Non-Aggregated Columns
+
+Incorrect:
+
+```sql id="5x1m8v"
+SELECT customer, amount
+FROM orders
+GROUP BY customer;
+```
+
+---
+
+# 3. Using WHERE Instead of HAVING
+
+Incorrect:
+
+```sql id="8m1x2q"
+WHERE COUNT(*) > 5
+```
+
+Correct:
+
+```sql id="6x2m1v"
+HAVING COUNT(*) > 5
+```
+
+---
+
+# 4. Confusing GROUP BY with ORDER BY
+
+Huge distinction.
+
+---
+
+# GROUP BY
+
+Creates groups.
+
+---
+
+# ORDER BY
+
+Sorts results.
+
+Entirely different operations.
+
+---
+
+# Most Important Mental Model
+
+`GROUP BY`:
+
+```txt id="7m2x1v"
+splits rows into groups
+```
+
+Then aggregate functions:
+
+* summarize each group independently
+
+This is the foundation of:
+
+* SQL analytics
+* reporting systems
+* admin dashboards
+* business intelligence
+* backend metrics systems
+
+# `HAVING` in PostgreSQL — In Depth
+
+`HAVING` is used to filter groups AFTER `GROUP BY`.
+
+This is one of the most important SQL concepts because beginners often confuse:
+
+* `WHERE`
+* `HAVING`
+
+The difference is fundamental.
+
+---
+
+# Core Idea
+
+---
+
+# `WHERE`
+
+Filters:
+
+* individual rows
+
+BEFORE grouping happens.
+
+---
+
+# `HAVING`
+
+Filters:
+
+* grouped results
+
+AFTER grouping happens.
+
+---
+
+# Mental Model
+
+Think of SQL execution like this:
+
+```txt id="4m8x1v"
+Rows
+  ↓
+WHERE
+  ↓
+GROUP BY
+  ↓
+HAVING
+  ↓
+SELECT
+  ↓
+ORDER BY
+```
+
+This order explains:
+
+* why `HAVING` exists
+* why aggregate functions fail inside `WHERE`
+
+---
+
+# Example Table
+
+Suppose we have:
+
+| id | customer | amount | status  |
+| -- | -------- | ------ | ------- |
+| 1  | Skyy     | 500    | paid    |
+| 2  | Bruce    | 300    | pending |
+| 3  | Skyy     | 200    | paid    |
+| 4  | Tony     | 800    | paid    |
+| 5  | Bruce    | 150    | paid    |
+
+---
+
+# Step 1 — GROUP BY Without HAVING
+
+```sql id="2x1m9v"
+SELECT
+    customer,
+    SUM(amount) AS total_spent
+FROM orders
+GROUP BY customer;
+```
+
+---
+
+# Result
+
+| customer | total_spent |
+| -------- | ----------- |
+| Skyy     | 700         |
+| Bruce    | 450         |
+| Tony     | 800         |
+
+---
+
+# Problem
+
+Suppose we only want customers who spent more than:
+
+```txt id="6m1x2v"
+500
+```
+
+We need to filter GROUPS.
+
+That’s what `HAVING` does.
+
+---
+
+# Basic HAVING Example
+
+```sql id="8x1m4q"
+SELECT
+    customer,
+    SUM(amount) AS total_spent
+FROM orders
+GROUP BY customer
+HAVING SUM(amount) > 500;
+```
+
+---
+
+# Result
+
+| customer | total_spent |
+| -------- | ----------- |
+| Skyy     | 700         |
+| Tony     | 800         |
+
+Bruce excluded because:
+
+```txt id="7x2m1v"
+450 <= 500
+```
+
+---
+
+# What Happened Internally?
+
+---
+
+# Original Rows
+
+```txt id="0m1x8v"
+Skyy  500
+Bruce 300
+Skyy  200
+Tony  800
+Bruce 150
+```
+
+---
+
+# GROUP BY Creates Groups
+
+```txt id="1x2m9v"
+Skyy  → [500, 200]
+Bruce → [300, 150]
+Tony  → [800]
+```
+
+---
+
+# Aggregates Run
+
+```txt id="5m1x2v"
+Skyy  → 700
+Bruce → 450
+Tony  → 800
+```
+
+---
+
+# HAVING Filters Groups
+
+```txt id="3x1m8v"
+700 > 500 ✅
+450 > 500 ❌
+800 > 500 ✅
+```
+
+Final result:
+
+* Skyy
+* Tony
+
+---
+
+# Biggest Beginner Mistake
+
+Trying to use aggregates in `WHERE`.
+
+---
+
+# WRONG
+
+```sql id="9x1m2v"
+SELECT
+    customer,
+    SUM(amount)
+FROM orders
+WHERE SUM(amount) > 500
+GROUP BY customer;
+```
+
+---
+
+# Why Wrong?
+
+Because:
+
+* `WHERE` runs BEFORE grouping
+* `SUM(amount)` does not exist yet
+
+At WHERE stage:
+
+* PostgreSQL still sees raw rows
+
+not grouped totals.
+
+---
+
+# Correct
+
+```sql id="7m1x8q"
+SELECT
+    customer,
+    SUM(amount)
+FROM orders
+GROUP BY customer
+HAVING SUM(amount) > 500;
+```
+
+---
+
+# Key Difference
+
+| Clause   | Filters |
+| -------- | ------- |
+| `WHERE`  | rows    |
+| `HAVING` | groups  |
+
+---
+
+# WHERE vs HAVING Visually
+
+---
+
+# WHERE Example
+
+```sql id="2m1x9q"
+SELECT *
+FROM orders
+WHERE amount > 300;
+```
+
+Filters INDIVIDUAL rows.
+
+---
+
+# Result
+
+| customer | amount |
+| -------- | ------ |
+| Skyy     | 500    |
+| Tony     | 800    |
+
+---
+
+# HAVING Example
+
+```sql id="4x1m8q"
+SELECT
+    customer,
+    SUM(amount)
+FROM orders
+GROUP BY customer
+HAVING SUM(amount) > 300;
+```
+
+Filters GROUPS.
+
+---
+
+# Result
+
+| customer | total |
+| -------- | ----- |
+| Skyy     | 700   |
+| Bruce    | 450   |
+| Tony     | 800   |
+
+Huge conceptual difference.
+
+---
+
+# HAVING Without GROUP BY
+
+Possible, though less common.
+
+---
+
+# Example
+
+```sql id="8m2x1q"
+SELECT COUNT(*)
+FROM orders
+HAVING COUNT(*) > 3;
+```
+
+---
+
+# Meaning
+
+Return result only if:
+
+* total row count exceeds 3
+
+---
+
+# HAVING with Multiple Conditions
+
+```sql id="1x9m2q"
+SELECT
+    customer,
+    COUNT(*) AS total_orders,
+    SUM(amount) AS total_spent
+FROM orders
+GROUP BY customer
+HAVING
+    COUNT(*) >= 2
+    AND SUM(amount) > 400;
+```
+
+---
+
+# Result
+
+| customer | total_orders | total_spent |
+| -------- | ------------ | ----------- |
+| Skyy     | 2            | 700         |
+| Bruce    | 2            | 450         |
+
+---
+
+# HAVING + AVG()
+
+Very common.
+
+---
+
+# Example
+
+```sql id="5x2m1q"
+SELECT
+    customer,
+    AVG(amount) AS avg_order
+FROM orders
+GROUP BY customer
+HAVING AVG(amount) > 300;
+```
+
+---
+
+# Result
+
+| customer | avg_order |
+| -------- | --------- |
+| Skyy     | 350       |
+| Tony     | 800       |
+
+---
+
+# HAVING + JOIN
+
+Extremely common in backend systems.
+
+---
+
+# Example Tables
+
+## users
+
+| id | name  |
+| -- | ----- |
+| 1  | Skyy  |
+| 2  | Bruce |
+| 3  | Tony  |
+
+---
+
+## posts
+
+| id  | title  | user_id |
+| --- | ------ | ------- |
+| 101 | SQL    | 1       |
+| 102 | Go     | 1       |
+| 103 | Batman | 2       |
+
+---
+
+# Query
+
+```sql id="3m8x1q"
+SELECT
+    users.name,
+    COUNT(posts.id) AS total_posts
+FROM users
+LEFT JOIN posts
+ON users.id = posts.user_id
+GROUP BY users.name
+HAVING COUNT(posts.id) >= 2;
+```
+
+---
+
+# Result
+
+| name | total_posts |
+| ---- | ----------- |
+| Skyy | 2           |
+
+---
+
+# Meaning
+
+Find users with:
+
+* at least 2 posts
+
+This is a very real production query.
+
+---
+
+# HAVING + ORDER BY
+
+Very common.
+
+---
+
+# Example
+
+```sql id="6x1m9q"
+SELECT
+    customer,
+    SUM(amount) AS total_spent
+FROM orders
+GROUP BY customer
+HAVING SUM(amount) > 300
+ORDER BY total_spent DESC;
+```
+
+---
+
+# Execution Flow
+
+```txt id="8x1m2v"
+1. FROM
+2. GROUP BY
+3. SUM()
+4. HAVING
+5. ORDER BY
+```
+
+---
+
+# HAVING + DISTINCT
+
+Example:
+
+```sql id="4m1x8v"
+SELECT
+    customer,
+    COUNT(DISTINCT status)
+FROM orders
+GROUP BY customer
+HAVING COUNT(DISTINCT status) > 1;
+```
+
+---
+
+# Meaning
+
+Find customers having:
+
+* multiple different statuses
+
+---
+
+# Real Backend Examples
+
+---
+
+# Ecommerce
+
+```sql id="7x1m2q"
+SELECT
+    customer_id,
+    SUM(amount)
+FROM orders
+GROUP BY customer_id
+HAVING SUM(amount) > 10000;
+```
+
+VIP customers.
+
+---
+
+# Social Media
+
+```sql id="2x1m8q"
+SELECT
+    user_id,
+    COUNT(*)
+FROM posts
+GROUP BY user_id
+HAVING COUNT(*) > 100;
+```
+
+Highly active users.
+
+---
+
+# Analytics
+
+```sql id="9m1x2q"
+SELECT
+    DATE(created_at),
+    COUNT(*)
+FROM signups
+GROUP BY DATE(created_at)
+HAVING COUNT(*) > 500;
+```
+
+High signup days.
+
+---
+
+# SaaS Billing
+
+```sql id="5m2x1q"
+SELECT
+    company_id,
+    SUM(invoice_total)
+FROM invoices
+GROUP BY company_id
+HAVING SUM(invoice_total) > 50000;
+```
+
+Large customers.
+
+---
+
+# Common Beginner Mistakes
+
+---
+
+# 1. Using WHERE Instead of HAVING
+
+Most common mistake.
+
+---
+
+# WRONG
+
+```sql id="1x8m2q"
+WHERE COUNT(*) > 5
+```
+
+---
+
+# Correct
+
+```sql id="8m1x2q"
+HAVING COUNT(*) > 5
+```
+
+---
+
+# 2. Forgetting GROUP BY
+
+Incorrect:
+
+```sql id="4x1m9q"
+SELECT customer, SUM(amount)
+FROM orders
+HAVING SUM(amount) > 500;
+```
+
+Need:
+
+```sql id="7m2x1q"
+GROUP BY customer
+```
+
+---
+
+# 3. Confusing Row Filtering vs Group Filtering
+
+Huge conceptual distinction.
+
+---
+
+# WHERE
+
+Filters:
+
+* rows
+
+---
+
+# HAVING
+
+Filters:
+
+* grouped summaries
+
+---
+
+# Most Important Mental Model
+
+`HAVING` is basically:
+
+```txt id="0x2m1v"
+WHERE for grouped data
+```
+
+But specifically:
+
+* AFTER aggregation
+* AFTER grouping
+
+That’s why aggregate functions work inside:
+
+* `HAVING`
+
+but not inside:
+
+* `WHERE`
+
+# Indexes in PostgreSQL — In Depth
+
+Indexes are one of the most important performance concepts in PostgreSQL.
+
+Without indexes:
+
+* queries become slow
+* searches scan entire tables
+* joins become expensive
+* sorting becomes slower
+
+Indexes help PostgreSQL:
+
+* find data faster
+
+They work similarly to:
+
+* an index in a book
+
+---
+
+# Real-World Analogy
+
+Suppose we have a 1000-page book.
+
+Without an index:
+
+* we scan page-by-page
+
+With an index:
+
+* we jump directly to the correct page
+
+Database indexes work similarly.
+
+---
+
+# Core Problem
+
+Suppose we have:
+
+```sql id="7x1m2q"
+SELECT *
+FROM users
+WHERE email = 'skyy@gmail.com';
+```
+
+Without an index:
+
+* PostgreSQL scans EVERY row
+
+This is called:
+
+# Sequential Scan
+
+---
+
+# Sequential Scan
+
+PostgreSQL checks:
+
+```txt id="1x9m2v"
+row 1
+row 2
+row 3
+...
+row 1,000,000
+```
+
+until it finds a match.
+
+Very slow on large tables.
+
+---
+
+# Index Solves This
+
+An index creates a special optimized data structure.
+
+Then PostgreSQL can:
+
+* jump directly to matching rows
+
+instead of scanning entire table.
+
+---
+
+# What an Index Actually Is
+
+An index is a separate data structure stored by PostgreSQL.
+
+Usually based on:
+
+# B-Tree
+
+(default index type)
+
+---
+
+# Simplified Mental Model
+
+Suppose table:
+
+| id | email                             |
+| -- | --------------------------------- |
+| 1  | [a@gmail.com](mailto:a@gmail.com) |
+| 2  | [b@gmail.com](mailto:b@gmail.com) |
+| 3  | [c@gmail.com](mailto:c@gmail.com) |
+
+An index on `email` might internally organize:
+
+```txt id="4m1x8v"
+a@gmail.com → row pointer
+b@gmail.com → row pointer
+c@gmail.com → row pointer
+```
+
+sorted efficiently.
+
+PostgreSQL can search this structure very quickly.
+
+---
+
+# Creating an Index
+
+---
+
+# Basic Syntax
+
+```sql id="2x1m9q"
+CREATE INDEX index_name
+ON table_name(column_name);
+```
+
+---
+
+# Example
+
+```sql id="5m2x1q"
+CREATE INDEX idx_users_email
+ON users(email);
+```
+
+---
+
+# Meaning
+
+Create index:
+
+* named `idx_users_email`
+* on `users.email`
+
+Now queries filtering by email become much faster.
+
+---
+
+# Why Naming Matters
+
+Convention:
+
+```txt id="7m1x2v"
+idx_<table>_<column>
+```
+
+Example:
+
+```txt id="1x8m2v"
+idx_posts_user_id
+idx_orders_created_at
+```
+
+Keeps schema readable.
+
+---
+
+# Most Commonly Indexed Columns
+
+| Column Type      | Why               |
+| ---------------- | ----------------- |
+| Primary keys     | heavily searched  |
+| Foreign keys     | joins             |
+| Emails/usernames | lookups           |
+| created_at       | sorting/filtering |
+| status           | filtering         |
+| category_id      | relationships     |
+
+---
+
+# Primary Keys Automatically Create Indexes
+
+Example:
+
+```sql id="8x1m2q"
+id SERIAL PRIMARY KEY
+```
+
+automatically creates:
+
+* unique index
+
+No need to manually create one.
+
+---
+
+# UNIQUE Also Creates Index
+
+Example:
+
+```sql id="4x1m9q"
+email TEXT UNIQUE
+```
+
+automatically creates:
+
+* unique index
+
+because uniqueness must be enforced efficiently.
+
+---
+
+# How Indexes Improve WHERE
+
+---
+
+# Without Index
+
+```sql id="6m1x2q"
+SELECT *
+FROM users
+WHERE email='skyy@gmail.com';
+```
+
+PostgreSQL:
+
+* scans entire table
+
+---
+
+# With Index
+
+PostgreSQL:
+
+* jumps directly to matching row
+
+Massive speed difference.
+
+---
+
+# Indexes and JOINs
+
+Extremely important.
+
+---
+
+# Example
+
+```sql id="9m1x2q"
+SELECT *
+FROM posts
+INNER JOIN users
+ON posts.user_id = users.id;
+```
+
+---
+
+# Important Indexed Columns
+
+```txt id="2x1m8v"
+users.id
+posts.user_id
+```
+
+Why?
+
+Because joins constantly compare them.
+
+Without indexes:
+
+* joins become expensive on large datasets
+
+---
+
+# Indexes and ORDER BY
+
+Indexes can help sorting too.
+
+---
+
+# Example
+
+```sql id="3m8x1q"
+SELECT *
+FROM posts
+ORDER BY created_at DESC;
+```
+
+If indexed:
+
+```sql id="5x1m2q"
+CREATE INDEX idx_posts_created_at
+ON posts(created_at);
+```
+
+sorting becomes faster.
+
+---
+
+# Indexes and Range Queries
+
+---
+
+# Example
+
+```sql id="7x2m1q"
+SELECT *
+FROM orders
+WHERE amount > 500;
+```
+
+Indexes help:
+
+* range filtering
+* comparisons
+* BETWEEN queries
+
+---
+
+# B-Tree Index
+
+Default PostgreSQL index type.
+
+---
+
+# Syntax
+
+```sql id="1x2m9q"
+CREATE INDEX idx_name
+ON table(column);
+```
+
+implicitly creates:
+
+* B-tree index
+
+---
+
+# Best For
+
+| Operation  | Supported |
+| ---------- | --------- |
+| `=`        | yes       |
+| `<` `>`    | yes       |
+| `BETWEEN`  | yes       |
+| `ORDER BY` | yes       |
+
+Most common/general-purpose index.
+
+---
+
+# Composite Indexes (Multi-Column)
+
+Very important.
+
+---
+
+# Example
+
+```sql id="8m1x2q"
+CREATE INDEX idx_orders_customer_status
+ON orders(customer_id, status);
+```
+
+---
+
+# Meaning
+
+Index stores BOTH columns together.
+
+Useful for queries like:
+
+```sql id="4m1x8q"
+SELECT *
+FROM orders
+WHERE customer_id = 1
+AND status = 'paid';
+```
+
+---
+
+# Column Order Matters
+
+Huge concept.
+
+---
+
+# Example Index
+
+```sql id="6x1m2q"
+(customer_id, status)
+```
+
+works well for:
+
+```sql id="9x1m2v"
+WHERE customer_id = ?
+```
+
+and:
+
+```sql id="0x2m1v"
+WHERE customer_id = ?
+AND status = ?
+```
+
+BUT NOT great for:
+
+```sql id="5m1x2v"
+WHERE status = ?
+```
+
+because leftmost column matters.
+
+---
+
+# Unique Index
+
+Enforces uniqueness.
+
+---
+
+# Example
+
+```sql id="2m8x1q"
+CREATE UNIQUE INDEX idx_users_email
+ON users(email);
+```
+
+Now duplicate emails impossible.
+
+---
+
+# Partial Indexes
+
+Very powerful PostgreSQL feature.
+
+---
+
+# Example
+
+```sql id="1m9x2q"
+CREATE INDEX idx_active_users
+ON users(email)
+WHERE is_active = true;
+```
+
+---
+
+# Meaning
+
+Index only stores:
+
+* active users
+
+Smaller + faster.
+
+---
+
+# Useful When
+
+Most queries target:
+
+* subset of rows
+
+---
+
+# Expression Indexes
+
+Indexes based on expressions.
+
+---
+
+# Example
+
+```sql id="3x1m8q"
+CREATE INDEX idx_lower_email
+ON users(LOWER(email));
+```
+
+Useful for:
+
+```sql id="8x1m2q"
+SELECT *
+FROM users
+WHERE LOWER(email)='skyy@gmail.com';
+```
+
+---
+
+# Without expression index:
+
+* PostgreSQL may ignore normal email index
+
+---
+
+# Hash Index
+
+Optimized mainly for:
+
+```txt id="1x2m8v"
+=
+```
+
+comparisons.
+
+Less common than B-tree.
+
+---
+
+# GIN Index
+
+Very important PostgreSQL feature.
+
+Used heavily for:
+
+* JSONB
+* arrays
+* full-text search
+
+---
+
+# Example
+
+```sql id="5x2m1q"
+CREATE INDEX idx_metadata
+ON app_events
+USING GIN(metadata);
+```
+
+Useful for JSONB queries.
+
+---
+
+# Example Query
+
+```sql id="7m1x2q"
+SELECT *
+FROM app_events
+WHERE metadata ? 'browser';
+```
+
+GIN makes this much faster.
+
+---
+
+# BRIN Index
+
+Used for:
+
+* huge tables
+* sequentially ordered data
+
+Very storage-efficient.
+
+Common for:
+
+* logs
+* analytics
+* time-series data
+
+---
+
+# Viewing Indexes
+
+---
+
+# Query
+
+```sql id="9m2x1q"
+\d table_name
+```
+
+Shows:
+
+* indexes
+* constraints
+* schema info
+
+---
+
+# Dropping Indexes
+
+---
+
+# Syntax
+
+```sql id="4x1m8q"
+DROP INDEX idx_users_email;
+```
+
+---
+
+# EXPLAIN — Seeing Query Plans
+
+Extremely important.
+
+---
+
+# Example
+
+```sql id="2x1m9q"
+EXPLAIN
+SELECT *
+FROM users
+WHERE email='skyy@gmail.com';
+```
+
+---
+
+# Without Index
+
+We may see:
+
+```txt id="6m1x2v"
+Seq Scan
+```
+
+---
+
+# With Index
+
+We may see:
+
+```txt id="1x9m2v"
+Index Scan
+```
+
+Meaning PostgreSQL used index.
+
+---
+
+# Indexes Are NOT Free
+
+Very important.
+
+Indexes improve reads BUT hurt writes.
+
+---
+
+# Why?
+
+Every:
+
+* INSERT
+* UPDATE
+* DELETE
+
+must also update indexes.
+
+---
+
+# Tradeoff
+
+| Operation | Effect |
+| --------- | ------ |
+| SELECT    | faster |
+| INSERT    | slower |
+| UPDATE    | slower |
+| DELETE    | slower |
+
+Too many indexes hurt performance.
+
+---
+
+# Storage Cost
+
+Indexes consume disk space.
+
+Large tables:
+
+* large indexes
+
+---
+
+# When NOT to Index
+
+---
+
+# Small Tables
+
+Sequential scan may actually be faster.
+
+---
+
+# Low Selectivity Columns
+
+Example:
+
+```txt id="4m1x2v"
+is_active = true/false
+```
+
+Only 2 values.
+
+Index may not help much.
+
+---
+
+# Frequently Updated Columns
+
+Can cause heavy maintenance cost.
+
+---
+
+# Real Backend Examples
+
+---
+
+# User Login
+
+```sql id="8x1m2q"
+WHERE email = ?
+```
+
+Index email.
+
+---
+
+# Social Media Feed
+
+```sql id="5m2x1q"
+ORDER BY created_at DESC
+```
+
+Index created_at.
+
+---
+
+# Ecommerce
+
+```sql id="9x1m2q"
+WHERE category_id = ?
+```
+
+Index foreign keys.
+
+---
+
+# Analytics
+
+```sql id="3x1m8v"
+WHERE created_at BETWEEN ...
+```
+
+Index timestamps.
+
+---
+
+# Most Common Beginner Mistakes
+
+---
+
+# 1. Indexing Everything
+
+Bad idea.
+
+Too many indexes:
+
+* slow writes
+* waste storage
+
+---
+
+# 2. Forgetting Foreign Key Indexes
+
+Huge performance issue in joins.
+
+---
+
+# 3. Ignoring Composite Index Order
+
+Order matters greatly.
+
+---
+
+# 4. Assuming Index Always Used
+
+PostgreSQL query planner decides.
+
+Sometimes sequential scan faster.
+
+---
+
+# 5. Not Using EXPLAIN
+
+Essential performance tool.
+
+---
+
+# Most Important Mental Model
+
+Indexes are basically:
+
+```txt id="7m1x2v"
+optimized lookup structures
+```
+
+that help PostgreSQL:
+
+* avoid scanning entire tables
+
+They are critical for:
+
+* scalable applications
+* fast queries
+* efficient joins
+* analytics systems
+* production databases
