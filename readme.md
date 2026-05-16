@@ -2951,3 +2951,722 @@ Suppose Node.js app tracks events:
 Instead of constantly changing schema, JSONB stores flexible event metadata cleanly.
 
 That’s one reason PostgreSQL dominates modern backend systems.
+
+# LIMIT, OFFSET, and Pagination in PostgreSQL
+
+These concepts are used to:
+
+# Control how much data we fetch from the database
+
+This becomes extremely important in real-world applications because tables can contain:
+
+```text id="b8ng5f"
+Thousands
+Millions
+Billions
+```
+
+of rows.
+
+We almost NEVER want:
+
+```sql id="w0w1di"
+SELECT * FROM products;
+```
+
+on huge production tables.
+
+Why?
+
+Because:
+
+* slow queries
+* huge memory usage
+* network overhead
+* bad user experience
+
+Instead, we fetch data in chunks.
+
+That is where:
+
+* `LIMIT`
+* `OFFSET`
+* pagination
+
+come in.
+
+---
+
+# 1. LIMIT
+
+# What LIMIT Does
+
+`LIMIT` restricts:
+
+# "How many rows PostgreSQL should return"
+
+---
+
+# Basic Syntax
+
+```sql id="i86v4r"
+SELECT *
+FROM products
+LIMIT 5;
+```
+
+Meaning:
+
+```text id="dy5eqs"
+Return only 5 rows
+```
+
+even if the table has 10 million rows.
+
+---
+
+# Example
+
+Suppose table:
+
+| id | name     |
+| -- | -------- |
+| 1  | iPhone   |
+| 2  | Mouse    |
+| 3  | Keyboard |
+| 4  | Monitor  |
+| 5  | Chair    |
+| 6  | Camera   |
+
+Query:
+
+```sql id="csmg9q"
+SELECT *
+FROM products
+LIMIT 3;
+```
+
+Result:
+
+| id | name     |
+| -- | -------- |
+| 1  | iPhone   |
+| 2  | Mouse    |
+| 3  | Keyboard |
+
+Only first 3 rows returned.
+
+---
+
+# Why LIMIT is Important
+
+---
+
+## A) Performance
+
+Huge tables become manageable.
+
+---
+
+## B) APIs
+
+Most APIs never return entire datasets.
+
+Example:
+
+```text id="3drw85"
+GET /products
+```
+
+Usually returns maybe:
+
+```text id="69v5u5"
+10
+20
+50
+```
+
+items.
+
+---
+
+## C) Infinite Scrolling
+
+Social media feeds use limited chunks.
+
+---
+
+# LIMIT Without ORDER BY is Dangerous
+
+This is VERY important.
+
+---
+
+# Bad Practice
+
+```sql id="c8e7nv"
+SELECT *
+FROM products
+LIMIT 5;
+```
+
+Problem:
+
+# PostgreSQL does NOT guarantee row order
+
+Meaning results may differ.
+
+---
+
+# Correct Practice
+
+```sql id="t4d0pj"
+SELECT *
+FROM products
+ORDER BY created_at DESC
+LIMIT 5;
+```
+
+Now results are deterministic.
+
+---
+
+# Mental Model
+
+`LIMIT` means:
+
+# "Stop after N rows"
+
+---
+
+# 2. OFFSET
+
+# What OFFSET Does
+
+`OFFSET` skips rows.
+
+---
+
+# Syntax
+
+```sql id="ob44w2"
+SELECT *
+FROM products
+OFFSET 5;
+```
+
+Meaning:
+
+```text id="cw3kri"
+Skip first 5 rows
+```
+
+and return the rest.
+
+---
+
+# Example
+
+Table:
+
+| id | name |
+| -- | ---- |
+| 1  | A    |
+| 2  | B    |
+| 3  | C    |
+| 4  | D    |
+| 5  | E    |
+| 6  | F    |
+| 7  | G    |
+
+Query:
+
+```sql id="vmptpn"
+SELECT *
+FROM products
+OFFSET 3;
+```
+
+Result:
+
+| id | name |
+| -- | ---- |
+| 4  | D    |
+| 5  | E    |
+| 6  | F    |
+| 7  | G    |
+
+First 3 skipped.
+
+---
+
+# OFFSET is Usually Used WITH LIMIT
+
+Because OFFSET alone is uncommon.
+
+---
+
+# Example
+
+```sql id="4m6z7z"
+SELECT *
+FROM products
+LIMIT 5
+OFFSET 10;
+```
+
+Meaning:
+
+```text id="66whjz"
+Skip first 10 rows
+Then return next 5 rows
+```
+
+---
+
+# Visual Understanding
+
+Suppose rows:
+
+```text id="a85yzv"
+1 2 3 4 5 6 7 8 9 10 11 12
+```
+
+Query:
+
+```sql id="thq29u"
+LIMIT 3 OFFSET 4
+```
+
+Steps:
+
+---
+
+## Step 1
+
+Skip:
+
+```text id="wt9bf0"
+1 2 3 4
+```
+
+---
+
+## Step 2
+
+Take next 3:
+
+```text id="mgbn6m"
+5 6 7
+```
+
+Result:
+
+```text id="m0i6md"
+5 6 7
+```
+
+---
+
+# ORDER MATTERS
+
+Always combine with `ORDER BY`.
+
+Correct:
+
+```sql id="r3o1uo"
+SELECT *
+FROM products
+ORDER BY created_at DESC
+LIMIT 10
+OFFSET 20;
+```
+
+---
+
+# 3. Pagination
+
+Pagination means:
+
+# Splitting large datasets into pages
+
+Example:
+
+```text id="m8sdmz"
+Page 1
+Page 2
+Page 3
+```
+
+Common in:
+
+* ecommerce
+* blogs
+* admin dashboards
+* APIs
+
+---
+
+# Real Example
+
+Suppose:
+
+```text id="3mth3j"
+10 products per page
+```
+
+---
+
+# Page 1
+
+```sql id="up9z6r"
+SELECT *
+FROM products
+ORDER BY id
+LIMIT 10
+OFFSET 0;
+```
+
+---
+
+# Page 2
+
+```sql id="98gcsi"
+SELECT *
+FROM products
+ORDER BY id
+LIMIT 10
+OFFSET 10;
+```
+
+---
+
+# Page 3
+
+```sql id="2g3ty4"
+SELECT *
+FROM products
+ORDER BY id
+LIMIT 10
+OFFSET 20;
+```
+
+---
+
+# Pagination Formula
+
+This is VERY important.
+
+# Formula
+
+\text{OFFSET}=(\text{page}-1)\times\text{limit}
+
+---
+
+# Example
+
+Suppose:
+
+```text id="r1k0x4"
+page = 4
+limit = 10
+```
+
+Then:
+
+(4-1)\times10=30
+
+Query:
+
+```sql id="jk4x0q"
+SELECT *
+FROM products
+ORDER BY id
+LIMIT 10
+OFFSET 30;
+```
+
+---
+
+# Backend Example
+
+Suppose frontend sends:
+
+```text id="ay7jlwm"
+?page=3&limit=10
+```
+
+Backend calculates:
+
+```javascript id="1cshaj"
+const offset = (page - 1) * limit;
+```
+
+SQL:
+
+```sql id="wn7qv7"
+SELECT *
+FROM products
+ORDER BY id
+LIMIT 10
+OFFSET 20;
+```
+
+---
+
+# Why Pagination Matters
+
+Without pagination:
+
+```text id="5mv2m8"
+Frontend freezes
+Huge API responses
+Memory waste
+Slow loading
+Bad UX
+```
+
+Imagine returning:
+
+```text id="4odn1w"
+2 million products
+```
+
+to browser.
+
+Disaster.
+
+---
+
+# Real-World API Usage
+
+Example response:
+
+```json id="4c3ayh"
+{
+  "page": 2,
+  "limit": 10,
+  "total": 100,
+  "data": [...]
+}
+```
+
+Very common REST API design.
+
+---
+
+# LIMIT/OFFSET Execution Internally
+
+This is important theoretically.
+
+---
+
+# PostgreSQL Still Reads Rows
+
+Many beginners think:
+
+```text id="d1n1r7"
+OFFSET 1000000
+```
+
+means PostgreSQL jumps magically.
+
+Not exactly.
+
+PostgreSQL often still scans/skips rows internally.
+
+Meaning:
+
+```text id="bjlwmc"
+Large OFFSET becomes slow
+```
+
+---
+
+# Problem with Large OFFSET
+
+Example:
+
+```sql id="e99pza"
+SELECT *
+FROM products
+ORDER BY id
+LIMIT 10
+OFFSET 1000000;
+```
+
+PostgreSQL may still process 1 million rows first.
+
+Very expensive.
+
+---
+
+# Why OFFSET Pagination Becomes Slow
+
+Because database must:
+
+```text id="s88a6r"
+Read
+Sort
+Skip
+Then return
+```
+
+large amounts of rows.
+
+---
+
+# Better Alternative: Cursor Pagination (Keyset Pagination)
+
+Advanced systems often avoid OFFSET for huge datasets.
+
+Instead use:
+
+# WHERE-based pagination
+
+Example:
+
+```sql id="i4b9mr"
+SELECT *
+FROM products
+WHERE id > 100
+ORDER BY id
+LIMIT 10;
+```
+
+This is MUCH faster for massive datasets.
+
+Used heavily in:
+
+* Twitter/X
+* Instagram
+* Facebook feeds
+* large APIs
+
+---
+
+# OFFSET Pagination vs Cursor Pagination
+
+| Feature                   | OFFSET | Cursor    |
+| ------------------------- | ------ | --------- |
+| Simple                    | Yes    | Moderate  |
+| Good for small apps       | Yes    | Yes       |
+| Large dataset performance | Poor   | Excellent |
+| Random page access        | Easy   | Hard      |
+| Infinite scrolling        | Okay   | Excellent |
+
+---
+
+# COUNT(*) With Pagination
+
+Often APIs need total rows.
+
+Example:
+
+```sql id="8v7f2k"
+SELECT COUNT(*)
+FROM products;
+```
+
+Combined with pagination metadata.
+
+---
+
+# Common Pagination API Structure
+
+Example:
+
+```json id="aj0fsr"
+{
+  "totalItems": 500,
+  "currentPage": 2,
+  "pageSize": 10,
+  "totalPages": 50,
+  "data": [...]
+}
+```
+
+---
+
+# Important Best Practices
+
+---
+
+# 1. ALWAYS Use ORDER BY
+
+Bad:
+
+```sql id="8rqmhh"
+SELECT * FROM products LIMIT 10;
+```
+
+Good:
+
+```sql id="zjlwm9"
+SELECT *
+FROM products
+ORDER BY id
+LIMIT 10;
+```
+
+---
+
+# 2. Index Your ORDER BY Column
+
+Example:
+
+```sql id="3wg5nz"
+CREATE INDEX idx_products_created_at
+ON products(created_at);
+```
+
+Improves pagination performance.
+
+---
+
+# 3. Avoid Huge OFFSET
+
+Bad:
+
+```sql id="0ew1he"
+OFFSET 5000000
+```
+
+---
+
+# 4. Use Cursor Pagination for Massive Apps
+
+Especially:
+
+* social media
+* real-time feeds
+* infinite scrolling
+
+---
+
+# Real-World Mental Model
+
+---
+
+# LIMIT
+
+Think:
+
+# "How many rows do we want?"
+
+---
+
+# OFFSET
+
+Think:
+
+# "How many rows should we skip first?"
+
+---
+
+# Pagination
+
+Think:
+
+# "How do we split massive data into manageable pages?"
+
