@@ -3670,3 +3670,778 @@ Think:
 
 # "How do we split massive data into manageable pages?"
 
+# Joins in PostgreSQL — In Depth
+
+Joins are the heart of relational databases.
+
+Without joins:
+
+* our tables become isolated
+* our database loses most of its relational power
+
+Joins allow us to combine related data from multiple tables.
+
+This is how real applications work:
+
+* users + posts
+* customers + orders
+* products + categories
+* payments + invoices
+* comments + authors
+
+Almost every serious backend application relies heavily on joins.
+
+---
+
+# Why Joins Exist
+
+Relational databases follow a concept called:
+
+# Normalization
+
+This means we split data into related tables to:
+
+* reduce duplication
+* improve consistency
+* organize data properly
+
+---
+
+# Example Without Normalization (Bad Design)
+
+```txt id="x1c8z7"
+posts
+------------------------------------------------------
+post_id | title       | author_name | author_email
+------------------------------------------------------
+1       | SQL Tips    | Skyy        | skyy@gmail.com
+2       | GoLang      | Skyy        | skyy@gmail.com
+```
+
+Problems:
+
+* repeated user data
+* difficult updates
+* wasted storage
+* inconsistent records possible
+
+---
+
+# Normalized Structure (Good Design)
+
+## users
+
+| id | name | email                                   |
+| -- | ---- | --------------------------------------- |
+| 1  | Skyy | [skyy@gmail.com](mailto:skyy@gmail.com) |
+
+---
+
+## posts
+
+| id | title    | user_id |
+| -- | -------- | ------- |
+| 1  | SQL Tips | 1       |
+| 2  | GoLang   | 1       |
+
+Now:
+
+* user information exists once
+* relationships are maintained through foreign keys
+
+Then joins help us reconstruct related data whenever we need it.
+
+---
+
+# Relationship Types
+
+Before learning joins deeply, we should understand relationships.
+
+---
+
+# 1. One-to-One
+
+```txt id="e9wq4p"
+users ↔ profiles
+```
+
+One user:
+
+* has one profile
+
+---
+
+# 2. One-to-Many
+
+```txt id="4g1zuv"
+users → posts
+```
+
+One user:
+
+* can write many posts
+
+One post:
+
+* belongs to one user
+
+This is the most common relationship type.
+
+---
+
+# 3. Many-to-Many
+
+```txt id="j9yb1q"
+posts ↔ tags
+```
+
+One post:
+
+* can have many tags
+
+One tag:
+
+* can belong to many posts
+
+This requires a junction table.
+
+---
+
+# Core Idea of a Join
+
+A join matches related rows between tables.
+
+Usually through:
+
+```sql id="n8c7vl"
+ON parent.id = child.foreign_key
+```
+
+---
+
+# Example Tables
+
+---
+
+# users
+
+| id | name  |
+| -- | ----- |
+| 1  | Skyy  |
+| 2  | Bruce |
+| 3  | Tony  |
+
+---
+
+# posts
+
+| id  | title      | user_id |
+| --- | ---------- | ------- |
+| 101 | SQL Tips   | 1       |
+| 102 | Batman DB  | 2       |
+| 103 | Ironman AI | 3       |
+| 104 | Unknown    | NULL    |
+
+---
+
+# INNER JOIN
+
+This is the most important join.
+
+---
+
+# Query
+
+```sql id="1yk2sr"
+SELECT
+    users.name,
+    posts.title
+FROM users
+INNER JOIN posts
+ON users.id = posts.user_id;
+```
+
+---
+
+# Meaning
+
+We only return rows where:
+
+* a matching relationship exists
+
+---
+
+# Matching Logic
+
+PostgreSQL checks:
+
+```txt id="4dnq7x"
+users.id == posts.user_id
+```
+
+---
+
+# Matches
+
+| users.id | posts.user_id |
+| -------- | ------------- |
+| 1        | 1             |
+| 2        | 2             |
+| 3        | 3             |
+
+---
+
+# Result
+
+| name  | title      |
+| ----- | ---------- |
+| Skyy  | SQL Tips   |
+| Bruce | Batman DB  |
+| Tony  | Ironman AI |
+
+---
+
+# Important
+
+The post:
+
+```txt id="v2j7na"
+Unknown
+```
+
+gets excluded because:
+
+* it has no matching user
+
+---
+
+# INNER JOIN = Intersection
+
+We can think of INNER JOIN as:
+
+```txt id="0mn4ze"
+only matching rows survive
+```
+
+---
+
+# LEFT JOIN
+
+Extremely common in real applications.
+
+---
+
+# Query
+
+```sql id="v2y4w1"
+SELECT
+    users.name,
+    posts.title
+FROM users
+LEFT JOIN posts
+ON users.id = posts.user_id;
+```
+
+---
+
+# Meaning
+
+We return:
+
+* ALL rows from the LEFT table
+* matching rows from the RIGHT table
+
+If no match exists:
+
+* PostgreSQL fills RIGHT-side columns with NULL
+
+---
+
+# Example
+
+Suppose:
+
+## users
+
+| id | name  |
+| -- | ----- |
+| 1  | Skyy  |
+| 2  | Bruce |
+| 3  | Tony  |
+| 4  | Peter |
+
+---
+
+## posts
+
+| title    | user_id |
+| -------- | ------- |
+| SQL Tips | 1       |
+| Batman   | 2       |
+
+---
+
+# Result
+
+| name  | title    |
+| ----- | -------- |
+| Skyy  | SQL Tips |
+| Bruce | Batman   |
+| Tony  | NULL     |
+| Peter | NULL     |
+
+---
+
+# Why LEFT JOIN Matters
+
+We use it constantly for:
+
+* dashboards
+* analytics
+* reports
+* optional relationships
+* finding missing data
+
+---
+
+# RIGHT JOIN
+
+RIGHT JOIN is the opposite of LEFT JOIN.
+
+---
+
+# Query
+
+```sql id="7n4m3v"
+SELECT
+    users.name,
+    posts.title
+FROM users
+RIGHT JOIN posts
+ON users.id = posts.user_id;
+```
+
+---
+
+# Meaning
+
+We return:
+
+* ALL rows from the RIGHT table
+* matching rows from the LEFT table
+
+---
+
+# FULL OUTER JOIN
+
+Returns everything.
+
+---
+
+# Query
+
+```sql id="z7x1m2"
+SELECT
+    users.name,
+    posts.title
+FROM users
+FULL OUTER JOIN posts
+ON users.id = posts.user_id;
+```
+
+---
+
+# Meaning
+
+We get:
+
+* matched rows
+* unmatched LEFT rows
+* unmatched RIGHT rows
+
+---
+
+# CROSS JOIN
+
+Potentially dangerous if misunderstood.
+
+---
+
+# Query
+
+```sql id="0c2v1b"
+SELECT *
+FROM users
+CROSS JOIN posts;
+```
+
+---
+
+# Meaning
+
+Every user combines with every post.
+
+---
+
+# Example
+
+If we have:
+
+* 3 users
+* 4 posts
+
+then PostgreSQL generates:
+
+```txt id="0pk9sj"
+3 × 4 = 12 rows
+```
+
+---
+
+# Cartesian Product
+
+Formula:
+
+```txt id="a1mf8x"
+rowsA × rowsB
+```
+
+This can explode into millions of rows accidentally.
+
+---
+
+# SELF JOIN
+
+A table joining itself.
+
+---
+
+# Example Table
+
+| id | name  | manager_id |
+| -- | ----- | ---------- |
+| 1  | Bruce | NULL       |
+| 2  | Clark | 1          |
+
+---
+
+# Query
+
+```sql id="m8z0rk"
+SELECT
+    e.name AS employee,
+    m.name AS manager
+FROM employees e
+LEFT JOIN employees m
+ON e.manager_id = m.id;
+```
+
+---
+
+# Why Aliases Matter
+
+Aliases make queries:
+
+* shorter
+* cleaner
+* easier to read
+
+Especially in joins.
+
+---
+
+# Example
+
+```sql id="4v1wqe"
+FROM users u
+INNER JOIN posts p
+ON u.id = p.user_id
+```
+
+---
+
+# Multi-Table Joins
+
+Real applications usually join many tables together.
+
+---
+
+# Example
+
+```sql id="2c9y1l"
+SELECT
+    users.name,
+    posts.title,
+    comments.body
+FROM users
+INNER JOIN posts
+ON users.id = posts.user_id
+INNER JOIN comments
+ON posts.id = comments.post_id;
+```
+
+---
+
+# Relationship Flow
+
+```txt id="4q2vzo"
+users
+   ↓
+posts
+   ↓
+comments
+```
+
+---
+
+# Many-to-Many Joins
+
+---
+
+# Tables
+
+```txt id="6xt7wp"
+posts
+tags
+post_tags
+```
+
+---
+
+# Query
+
+```sql id="1mz9cp"
+SELECT
+    posts.title,
+    tags.name
+FROM posts
+INNER JOIN post_tags
+ON posts.id = post_tags.post_id
+INNER JOIN tags
+ON tags.id = post_tags.tag_id;
+```
+
+---
+
+# Why Junction Tables Exist
+
+Relational databases cannot directly store:
+
+* many-to-many relationships
+
+So we create a bridge table.
+
+---
+
+# NULL Behavior in Joins
+
+Very important.
+
+---
+
+# INNER JOIN
+
+Rows without matches usually disappear.
+
+---
+
+# LEFT JOIN
+
+Unmatched RIGHT-side rows become:
+
+```txt id="2w8m4v"
+NULL
+```
+
+---
+
+# Example Query
+
+```sql id="7j2m8p"
+SELECT
+    users.name,
+    posts.title
+FROM users
+LEFT JOIN posts
+ON users.id = posts.user_id
+WHERE posts.id IS NULL;
+```
+
+---
+
+# Meaning
+
+Find users who have:
+
+* no posts
+
+This is a very common real-world query.
+
+---
+
+# How PostgreSQL Executes Joins Internally
+
+PostgreSQL may choose different strategies:
+
+| Strategy         | Typical Usage              |
+| ---------------- | -------------------------- |
+| Nested Loop Join | small datasets             |
+| Hash Join        | very common efficient join |
+| Merge Join       | sorted joins               |
+
+The query planner chooses the best one automatically.
+
+---
+
+# Indexes Matter a Lot
+
+Join performance heavily depends on indexes.
+
+---
+
+# Common Indexed Columns
+
+```sql id="1c8v5m"
+users.id
+posts.user_id
+```
+
+Foreign keys are often indexed because joins rely on them constantly.
+
+Without indexes:
+
+* joins become slow on large datasets
+
+---
+
+# Real Backend Examples
+
+---
+
+# Blog Application
+
+```txt id="7p9x2l"
+users ↔ posts ↔ comments
+```
+
+---
+
+# Ecommerce
+
+```txt id="8k0w1n"
+customers ↔ orders ↔ order_items ↔ products
+```
+
+---
+
+# Social Media
+
+```txt id="4t6n8q"
+users ↔ posts ↔ likes ↔ comments
+```
+
+---
+
+# SaaS Billing
+
+```txt id="3z1m8r"
+users ↔ subscriptions ↔ invoices ↔ payments
+```
+
+---
+
+# Most Important Mental Model
+
+A join is simply:
+
+```txt id="9f3c1x"
+matching related rows across tables
+```
+
+using:
+
+* primary keys
+* foreign keys
+
+---
+
+# Most Common Beginner Mistakes
+
+---
+
+# 1. Missing ON Condition
+
+```sql id="6r2w8v"
+SELECT *
+FROM users
+JOIN posts;
+```
+
+Can accidentally create a huge cartesian product.
+
+---
+
+# 2. Wrong Join Condition
+
+Incorrect:
+
+```sql id="8n4c1m"
+ON users.id = posts.id
+```
+
+Correct:
+
+```sql id="7v1m9x"
+ON users.id = posts.user_id
+```
+
+---
+
+# 3. Ambiguous Columns
+
+This is unclear:
+
+```sql id="0w3x8m"
+SELECT id
+```
+
+Which table’s `id`?
+
+Better:
+
+```sql id="9m2c7p"
+users.id
+```
+
+---
+
+# 4. Using INNER JOIN When LEFT JOIN Is Needed
+
+This can accidentally hide rows.
+
+Very common bug in:
+
+* reports
+* dashboards
+* analytics systems
+
+---
+
+# Most Common Joins Used in Industry
+
+| Join       | Usage Frequency  |
+| ---------- | ---------------- |
+| INNER JOIN | extremely common |
+| LEFT JOIN  | extremely common |
+| RIGHT JOIN | rare             |
+| FULL JOIN  | rare             |
+| CROSS JOIN | niche/dangerous  |
+
+In real backend development, we mostly master:
+
+* INNER JOIN
+* LEFT JOIN
+
+because those solve the majority of production problems.
+
+
